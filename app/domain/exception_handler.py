@@ -19,8 +19,12 @@ from app.domain.exceptions import GlossaryCreateError, GlossaryUpdateFromXlsxErr
 
 def log_error(e: Exception) -> None:
     """Логирование ошибки"""
-    logger = GlossaryLogger(logger_type=LoggerType.APP)
-    logger.error(f"Ошибка {type(e)}: {traceback.format_exc()}")
+    try:
+        logger = GlossaryLogger(logger_type=LoggerType.APP)
+        logger.error(f"Ошибка {type(e)}: {traceback.format_exc()}")
+    except Exception:
+        # Ошибка логирования не должна скрывать исходное исключение.
+        pass
 
 
 async def validation_exception_handler(

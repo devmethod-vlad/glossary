@@ -3,9 +3,10 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from faker import Faker
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from redis.asyncio import from_url
 from redis.asyncio.client import Pipeline, Redis
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
@@ -107,13 +108,6 @@ async def db_session(db: Database) -> AsyncGenerator[AsyncSession]:
         await session.rollback()
 
 
-@pytest.fixture()
-async def client(db: Database) -> AsyncGenerator[AsyncClient]:
-    """Фикстура для тестового клиента FastAPI."""
-    async with AsyncClient(app=app, base_url="http://testserver") as client:
-        yield client
-
-
 class TestRedisHelper:
     """Вспомогательный класс для работы с тестовым Redis"""
 
@@ -148,17 +142,16 @@ async def redis(settings: Settings) -> AsyncGenerator[RedisHelper]:
 
 
 @pytest.fixture()
-async def glossary_service(
+async def override_app_dependencies(
     db: Database, redis: RedisHelper
-) -> AsyncGenerator[IGlossaryService, None]:
-    """Фикстура для тестового сервиса глоссария с переопределенной базой данных."""
+) -> AsyncGenerator[None, None]:
+    """Переопределение зависимостей приложения на тестовые ресурсы."""
 
     async def override_get_db() -> AsyncGenerator[Database, None]:
         yield db
 
     async def override_get_uow() -> AsyncGenerator[IUnitOfWork, None]:
-        async for db_session in override_get_db():
-            yield UnitOfWork(db_session)
+        yield UnitOfWork(db)
 
     async def override_get_redis() -> AsyncGenerator[RedisHelper, None]:
         yield redis
@@ -167,11 +160,45 @@ async def glossary_service(
     app.dependency_overrides[get_uow] = override_get_uow
     app.dependency_overrides[get_redis] = override_get_redis
 
-    uow = await anext(override_get_uow())
-    redis = await anext(override_get_redis())
+    yield
 
-    service = GlossaryService(uow, redis)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_glossary_elements(db: Database) -> AsyncGenerator[None, None]:
+    """Очистка таблицы glossary_element для изоляции тестовых данных."""
+
+    async def clear() -> None:
+        async with db.session_factory() as session:
+            await session.execute(text("TRUNCATE TABLE glossary_element RESTART IDENTITY CASCADE"))
+            await session.commit()
+
+    await clear()
+    yield
+    await clear()
+
+
+@pytest.fixture()
+async def glossary_service(
+    db: Database,
+    redis: RedisHelper,
+    override_app_dependencies,
+) -> AsyncGenerator[IGlossaryService, None]:
+    """Фикстура для тестового сервиса глоссария с переопределенной базой данных."""
+
+    service = GlossaryService(UnitOfWork(db), redis)
 
     yield service
 
-    app.dependency_overrides.clear()
+
+@pytest.fixture()
+async def client(
+    override_app_dependencies,
+) -> AsyncGenerator[AsyncClient]:
+    """Фикстура для тестового клиента FastAPI с тестовыми зависимостями."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app, lifespan="off"),
+        base_url="http://testserver",
+    ) as test_client:
+        yield test_client
