@@ -142,9 +142,7 @@ async def redis(settings: Settings) -> AsyncGenerator[RedisHelper]:
 
 
 @pytest.fixture()
-async def override_app_dependencies(
-    db: Database, redis: RedisHelper
-) -> AsyncGenerator[None, None]:
+async def override_app_dependencies(db: Database, redis: RedisHelper) -> AsyncGenerator[None, None]:
     """Переопределение зависимостей приложения на тестовые ресурсы."""
 
     async def override_get_db() -> AsyncGenerator[Database, None]:
@@ -186,10 +184,9 @@ async def glossary_service(
     override_app_dependencies,
 ) -> AsyncGenerator[IGlossaryService, None]:
     """Фикстура для тестового сервиса глоссария с переопределенной базой данных."""
-
     service = GlossaryService(UnitOfWork(db), redis)
 
-    yield service
+    return service
 
 
 @pytest.fixture()
@@ -198,7 +195,7 @@ async def client(
 ) -> AsyncGenerator[AsyncClient]:
     """Фикстура для тестового клиента FastAPI с тестовыми зависимостями."""
     async with AsyncClient(
-        transport=ASGITransport(app=app, lifespan="off"),
+        transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as test_client:
         yield test_client
