@@ -13,19 +13,19 @@ repos:
   - repo: local
     hooks:
       - id: black
-        name: docker_black
-        entry: docker compose exec -T glossary-app poetry run black .
+        name: poetry_black
+        entry: poetry run black .
         language: system
         pass_filenames: false
 
       - id: ruff
-        name: docker_ruff
-        entry: docker compose exec -T glossary-app poetry run ruff check --fix .
+        name: poetry_ruff
+        entry: poetry run ruff check --fix .
         language: system
         pass_filenames: false
 
       - id: mypy
-        name: docker_mypy
-        entry: docker compose exec -T glossary-app poetry run mypy --config-file pyproject.toml .
+        name: poetry_mypy
+        entry: poetry run mypy --config-file pyproject.toml .
         language: system
         pass_filenames: false

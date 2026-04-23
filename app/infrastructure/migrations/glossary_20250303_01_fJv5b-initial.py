@@ -30,15 +30,18 @@ def glossary_view_step(conn):
 
 
 steps = [
-    step(r"""
+    step(
+        r"""
         CREATE FUNCTION modified_trigger() RETURNS trigger
             LANGUAGE plpgsql
             AS $$BEGIN
                 NEW.modified_at := NOW();
                 RETURN NEW;
             END;$$;
-        """),
-    step(r"""
+        """
+    ),
+    step(
+        r"""
         CREATE TABLE glossary_element (
             id UUID PRIMARY KEY,
             abbreviation VARCHAR(500) NOT NULL DEFAULT '',
@@ -47,30 +50,41 @@ steps = [
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             modified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
-        """),
-    step(r"""
+        """
+    ),
+    step(
+        r"""
         CREATE TRIGGER modified_trigger BEFORE UPDATE ON glossary_element FOR EACH ROW EXECUTE FUNCTION modified_trigger();
-        """),
-    step(r"""
+        """
+    ),
+    step(
+        r"""
         CREATE EXTENSION pg_trgm;
-        """),
-    step(r"""
+        """
+    ),
+    step(
+        r"""
         CREATE INDEX ix_abbreviation_trgm ON glossary_element USING gin (abbreviation gin_trgm_ops);
         CREATE INDEX ix_term_trgm ON glossary_element USING gin (term gin_trgm_ops);
         CREATE INDEX ix_definition_trgm ON glossary_element USING gin (definition gin_trgm_ops);
-        """),
+        """
+    ),
     step(glossary_view_step),
-    step(r"""
+    step(
+        r"""
         CREATE OR REPLACE FUNCTION refresh_glossary_view() RETURNS TRIGGER
             LANGUAGE plpgsql
             AS $$ BEGIN
                 REFRESH MATERIALIZED VIEW ge_splitted;
                 RETURN NULL;
             END $$;
-        """),
-    step(r"""
+        """
+    ),
+    step(
+        r"""
         CREATE TRIGGER trig_refresh_glossary
         AFTER INSERT OR DELETE OR UPDATE ON glossary_element
         FOR EACH STATEMENT EXECUTE PROCEDURE refresh_glossary_view();
-        """),
+        """
+    ),
 ]

@@ -264,8 +264,10 @@ class GlossaryService(IGlossaryService):
     ) -> GlossaryElementsListResponse:
         """Получение всех элементов глоссария с пагинацией."""
         async with self.uow:
-            glossary: PaginatedGlossaryElements = await self.uow.glossary_element.get_all_glossary_elements(
-                filters=PaginationFilter(limit=request.limit, offset=request.offset)
+            glossary: PaginatedGlossaryElements = (
+                await self.uow.glossary_element.get_all_glossary_elements(
+                    filters=PaginationFilter(limit=request.limit, offset=request.offset)
+                )
             )
 
         data = [
