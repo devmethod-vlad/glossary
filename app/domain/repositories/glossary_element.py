@@ -1,9 +1,13 @@
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from app.common.filters.filters import PaginationFilter
 from app.common.repositories.repository import SQLAlchemyRepository
 from app.domain.repositories.interfaces import IGlossaryElementRepository
-from app.domain.schemas.glossary_element import GlossaryElementSchema, ListGLossaryElements
+from app.domain.schemas.glossary_element import (
+    GlossaryElementSchema,
+    ListGLossaryElements,
+    PaginatedGlossaryElements,
+)
 from app.infrastructure.models import GlossaryElement
 
 
@@ -98,6 +102,36 @@ class GlossaryElementRepository(SQLAlchemyRepository, IGlossaryElementRepository
         return ListGLossaryElements(
             elements=self.to_dto(instances, dto=self.response_dto),
             count=instances[0]["total_count"] if instances else 0,
+        )
+
+    async def get_all_glossary_elements(
+        self, filters: PaginationFilter | None = None
+    ) -> PaginatedGlossaryElements:
+        """Получение всех элементов глоссария с пагинацией.
+
+        Важно считать total отдельным запросом, чтобы корректно вернуть
+        общее количество даже если текущая страница пустая.
+        """
+        total_stmt = select(func.count()).select_from(self.model)
+        total = (await self.session.execute(total_stmt)).scalar_one()
+
+        elements_stmt = select(self.model).order_by(
+            self.model.abbreviation.asc(),
+            self.model.term.asc(),
+            self.model.id.asc(),
+        )
+        if filters:
+            if filters.limit is not None:
+                elements_stmt = elements_stmt.limit(filters.limit)
+            if filters.offset is not None:
+                elements_stmt = elements_stmt.offset(filters.offset)
+
+        result = await self.session.execute(elements_stmt)
+        instances = result.scalars().all()
+
+        return PaginatedGlossaryElements(
+            elements=self.to_dto(instances, dto=self.response_dto),
+            total=total,
         )
 
     def _escape_special_characters(self, input_string: str) -> str:

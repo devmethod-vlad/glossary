@@ -8,10 +8,12 @@ from app.api.v1.dto.requests.glossary import (
     GlossaryElementRequest,
     GlossaryElementsBulkCreateRequest,
     GlossaryElementsGetRequest,
+    GlossaryElementsListRequest,
 )
 from app.api.v1.dto.responses.glossary import (
     GlossaryElementsBulkCreateResponse,
     GlossaryElementsGetResponse,
+    GlossaryElementsListResponse,
     GlossaryUpdateFromXlsxResponse,
 )
 from app.dependencies.dependencies import get_glossary_service
@@ -45,6 +47,20 @@ async def get_glossary_elements(
 ) -> JSONResponse:
     """Получение элементов глоссария"""
     result = await service.get_glossary_elements(request=glossary)
+    return JSONResponse(content=jsonable_encoder(result), status_code=200)
+
+
+@router.get(
+    "/getelements",
+    response_model=GlossaryElementsListResponse,
+    summary="Получение всех элементов глоссария",
+)
+async def get_all_glossary_elements(
+    request: Annotated[GlossaryElementsListRequest, Depends()],
+    service: Annotated[IGlossaryService, Depends(get_glossary_service)],
+) -> JSONResponse:
+    """Получение всех элементов глоссария с пагинацией."""
+    result = await service.get_all_glossary_elements(request=request)
     return JSONResponse(content=jsonable_encoder(result), status_code=200)
 
 

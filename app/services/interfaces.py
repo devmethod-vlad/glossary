@@ -3,10 +3,12 @@ from abc import ABC, abstractmethod
 from app.api.v1.dto.requests.glossary import (
     GlossaryElementsBulkCreateRequest,
     GlossaryElementsGetRequest,
+    GlossaryElementsListRequest,
 )
 from app.api.v1.dto.responses.glossary import (
     GlossaryElementsBulkCreateResponse,
     GlossaryElementsGetResponse,
+    GlossaryElementsListResponse,
     GlossaryUpdateFromXlsxResponse,
 )
 
@@ -25,6 +27,12 @@ class IGlossaryService(ABC):
         self, request: GlossaryElementsGetRequest
     ) -> GlossaryElementsGetResponse:
         """Получение элементов глоссария"""
+
+    @abstractmethod
+    async def get_all_glossary_elements(
+        self, request: GlossaryElementsListRequest
+    ) -> GlossaryElementsListResponse:
+        """Получение всех элементов глоссария с пагинацией"""
 
     @abstractmethod
     async def update_glossary_from_xlsx(

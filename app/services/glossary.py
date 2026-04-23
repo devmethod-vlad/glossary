@@ -11,11 +11,13 @@ from arq.connections import (
 from app.api.v1.dto.requests.glossary import (
     GlossaryElementsBulkCreateRequest,
     GlossaryElementsGetRequest,
+    GlossaryElementsListRequest,
 )
 from app.api.v1.dto.responses.glossary import (
     GlossaryElementResponse,
     GlossaryElementsBulkCreateResponse,
     GlossaryElementsGetResponse,
+    GlossaryElementsListResponse,
     GlossaryUpdateFromXlsxResponse,
 )
 from app.common.exceptions.exceptions import (
@@ -39,6 +41,7 @@ from app.domain.schemas.glossary_element import (
     GlossaryElementSchema,
     GlossaryElementsUpToDateData,
     ListGLossaryElements,
+    PaginatedGlossaryElements,
 )
 from app.infrastructure.adapters.edu import EduAdapter
 from app.infrastructure.adapters.excel import ExcelAdapter
@@ -255,6 +258,22 @@ class GlossaryService(IGlossaryService):
                 for element in glossary.elements
             ],
         )
+
+    async def get_all_glossary_elements(
+        self, request: GlossaryElementsListRequest
+    ) -> GlossaryElementsListResponse:
+        """Получение всех элементов глоссария с пагинацией."""
+        async with self.uow:
+            glossary: PaginatedGlossaryElements = await self.uow.glossary_element.get_all_glossary_elements(
+                filters=PaginationFilter(limit=request.limit, offset=request.offset)
+            )
+
+        data = [
+            GlossaryElementResponse(**element.model_dump(by_alias=True, exclude_none=True))
+            for element in glossary.elements
+        ]
+
+        return GlossaryElementsListResponse(data=data, count=len(data), total=glossary.total)
 
     def _prepare_glossary_data_to_update(
         self, elements_from_db: list[GlossaryElementSchema], df_cleaned: pd.DataFrame

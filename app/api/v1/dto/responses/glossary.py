@@ -28,6 +28,14 @@ class GlossaryElementsGetResponse(ArbitraryModel):
     data: list[GlossaryElementResponse]
 
 
+class GlossaryElementsListResponse(ArbitraryModel):
+    """Ответ на получение списка элементов глоссария."""
+
+    data: list[GlossaryElementResponse]
+    count: int
+    total: int
+
+
 class GlossaryUpdateFromXlsxResponse(ArbitraryModel):
     """Ответ на обновление глоссария из xlsx"""
 
