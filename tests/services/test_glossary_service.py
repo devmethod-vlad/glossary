@@ -1,4 +1,5 @@
 import random
+from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
 import pandas as pd
@@ -14,6 +15,8 @@ from app.infrastructure.adapters.excel import ExcelAdapter
 from app.infrastructure.models import GlossaryElement
 from app.services.interfaces import IGlossaryService
 from app.settings.config import settings
+
+GlossaryElementFactoryCallable = Callable[..., Awaitable[GlossaryElement]]
 
 
 class TestGlossaryService:
@@ -629,7 +632,7 @@ class TestGlossaryService:
 
     async def test_get_all_glossary_elements_with_pagination(
         self,
-        glossary_element_factory,
+        glossary_element_factory: GlossaryElementFactoryCallable,
         glossary_service: IGlossaryService,
     ) -> None:
         """Проверяет пагинацию, сортировку и корректный total."""
@@ -659,7 +662,7 @@ class TestGlossaryService:
 
     async def test_get_all_glossary_elements_empty_page(
         self,
-        glossary_element_factory,
+        glossary_element_factory: GlossaryElementFactoryCallable,
         glossary_service: IGlossaryService,
     ) -> None:
         """Проверяет сценарий пустой страницы при offset за пределами выборки."""

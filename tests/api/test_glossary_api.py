@@ -1,6 +1,10 @@
+from collections.abc import Awaitable, Callable
+
 import httpx
 
 from app.infrastructure.models import GlossaryElement
+
+GlossaryElementFactoryCallable = Callable[..., Awaitable[GlossaryElement]]
 
 
 class TestGlossaryGetElementsAPI:
@@ -39,7 +43,7 @@ class TestGlossaryGetElementsAPI:
     async def test_getelements_pagination(
         self,
         client: httpx.AsyncClient,
-        glossary_element_factory,
+        glossary_element_factory: GlossaryElementFactoryCallable,
     ) -> None:
         """Проверяет корректность страницы, count и total."""
         await glossary_element_factory(
