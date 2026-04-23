@@ -23,6 +23,13 @@ class ListGLossaryElements(ArbitraryModel):
     count: int
 
 
+class PaginatedGlossaryElements(ArbitraryModel):
+    """Схема результата пагинированного списка элементов глоссария."""
+
+    elements: list[GlossaryElementSchema]
+    total: int
+
+
 class GlossaryElementsUpToDateData(ArbitraryModel):
     """Схема данных на обновление элементов глоссария"""
 

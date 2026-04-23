@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from app.common.filters.filters import PaginationFilter
 from app.common.repositories.interfaces import IRepository
-from app.domain.schemas.glossary_element import ListGLossaryElements
+from app.domain.schemas.glossary_element import ListGLossaryElements, PaginatedGlossaryElements
 
 
 class IGlossaryElementRepository(IRepository, ABC):
@@ -13,3 +13,9 @@ class IGlossaryElementRepository(IRepository, ABC):
         self, query: str, filters: PaginationFilter | None = None
     ) -> ListGLossaryElements:
         """Получение элементов глоссария по текстовому запросу"""
+
+    @abstractmethod
+    async def get_all_glossary_elements(
+        self, filters: PaginationFilter | None = None
+    ) -> PaginatedGlossaryElements:
+        """Получение всех элементов глоссария с пагинацией и общим количеством."""

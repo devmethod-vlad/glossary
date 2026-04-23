@@ -59,3 +59,10 @@ class GlossaryElementsGetRequest(ArbitraryModel):
         query = query.strip(settings.app.glossary_request_garbage_symbols)
         query = re.sub(r"\s+", " ", query)
         return query
+
+
+class GlossaryElementsListRequest(ArbitraryModel):
+    """Query-параметры для получения списка элементов глоссария."""
+
+    limit: int = Field(default=100, ge=1, le=500)
+    offset: int = Field(default=0, ge=0)

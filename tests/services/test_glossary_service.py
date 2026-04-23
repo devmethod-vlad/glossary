@@ -4,8 +4,11 @@ from uuid import uuid4
 import pandas as pd
 from faker import Faker
 
-from app.api.v1.dto.requests.glossary import GlossaryElementsGetRequest
-from app.api.v1.dto.responses.glossary import GlossaryElementsGetResponse
+from app.api.v1.dto.requests.glossary import GlossaryElementsGetRequest, GlossaryElementsListRequest
+from app.api.v1.dto.responses.glossary import (
+    GlossaryElementsGetResponse,
+    GlossaryElementsListResponse,
+)
 from app.domain.schemas.glossary_element import GlossaryElementSchema, GlossaryElementsUpToDateData
 from app.infrastructure.adapters.excel import ExcelAdapter
 from app.infrastructure.models import GlossaryElement
@@ -623,3 +626,58 @@ class TestGlossaryService:
             )
         )
         assert result_lowercase == result_uppercase == result_garbagesymbol
+
+    async def test_get_all_glossary_elements_with_pagination(
+        self,
+        glossary_element_factory,
+        glossary_service: IGlossaryService,
+    ) -> None:
+        """Проверяет пагинацию, сортировку и корректный total."""
+        await glossary_element_factory(
+            abbreviation="CCC",
+            term="term-3",
+            definition="definition-3",
+        )
+        await glossary_element_factory(
+            abbreviation="AAA",
+            term="term-1",
+            definition="definition-1",
+        )
+        await glossary_element_factory(
+            abbreviation="BBB",
+            term="term-2",
+            definition="definition-2",
+        )
+
+        result: GlossaryElementsListResponse = await glossary_service.get_all_glossary_elements(
+            request=GlossaryElementsListRequest(limit=2, offset=1)
+        )
+
+        assert [element.abbreviation for element in result.data] == ["BBB", "CCC"]
+        assert result.count == 2
+        assert result.total == 3
+
+    async def test_get_all_glossary_elements_empty_page(
+        self,
+        glossary_element_factory,
+        glossary_service: IGlossaryService,
+    ) -> None:
+        """Проверяет сценарий пустой страницы при offset за пределами выборки."""
+        await glossary_element_factory(
+            abbreviation="AAA",
+            term="term-1",
+            definition="definition-1",
+        )
+        await glossary_element_factory(
+            abbreviation="BBB",
+            term="term-2",
+            definition="definition-2",
+        )
+
+        result: GlossaryElementsListResponse = await glossary_service.get_all_glossary_elements(
+            request=GlossaryElementsListRequest(limit=10, offset=100)
+        )
+
+        assert result.data == []
+        assert result.count == 0
+        assert result.total == 2
