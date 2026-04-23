@@ -1,0 +1,32 @@
+services:
+  glossary-app:
+    build:
+      context: .
+      dockerfile: Dockerfile_prod
+    networks:
+      - default
+      - service-network
+
+  glossary-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile_prod
+    networks:
+      - default
+      - service-network
+
+  glossary-arq:
+    build:
+      context: .
+      dockerfile: Dockerfile_prod
+    networks:
+      - default
+      - service-network
+
+networks:
+  default:
+    driver: bridge
+
+  service-network:
+    name: service-network
+    external: true

@@ -1,0 +1,235 @@
+default:
+  tags:
+    - glossary
+stages:
+  - build_image
+  - lint
+  - test
+  - deploy
+
+.variables_dev:
+  variables:
+    MY_SECRET_FILE: "$MY_SECRET_FILE_DEV"
+    POSTGRES_DB: "$POSTGRES_DB_DEV"
+    POSTGRES_USER: "$POSTGRES_USER_DEV"
+    POSTGRES_PASSWORD: "$POSTGRES_PASSWORD_DEV"
+    POSTGRES_PORT: "&POSTGRES_PORT_DEV"
+
+.variables_main:
+  variables:
+    MY_SECRET_FILE: "$MY_SECRET_FILE_MAIN"
+    POSTGRES_DB: "$POSTGRES_DB_MAIN"
+    POSTGRES_USER: "$POSTGRES_USER_MAIN"
+    POSTGRES_PASSWORD: "$POSTGRES_PASSWORD_MAIN"
+    POSTGRES_PORT: "$POSTGRES_PORT_MAIN"
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+  IMAGE_NAME: glossary_image
+  TEST_IMAGE_DEV: glossary_test_dev
+  TEST_IMAGE_MAIN: glossary_test_main
+  REGISTRY: docker.emias.ru/wiki.eduemias
+  DOCKER_TLS_CERTDIR: ""
+  HTTP_PROXY: "http://10.0.20.6:80"
+  HTTPS_PROXY: "http://10.0.20.6:80"
+  NO_PROXY: "git.emias.mos.ru, docker,127.0.0.1,localhost"
+  no_proxy: "git.emias.mos.ru, docker,127.0.0.1,localhost"
+
+.build:
+  stage: build_image
+  image: docker:latest
+  services:
+    - name: docker:dind
+      alias: docker
+      variables:
+        HTTP_PROXY: "http://10.0.20.6:80"
+        HTTPS_PROXY: "http://10.0.20.6:80"
+        NO_PROXY: "git.emias.mos.ru, docker,127.0.0.1,localhost"
+        no_proxy: "git.emias.mos.ru, docker,127.0.0.1,localhost"
+        DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$REGISTRY_PASS" | docker login $REGISTRY -u "$REGISTRY_USER" --password-stdin
+  allow_failure: false
+
+docker-build-prod:
+  extends: .build
+  script:
+    - docker build -t $IMAGE_NAME -f Dockerfile_prod .
+    - docker tag $IMAGE_NAME $REGISTRY/$IMAGE_NAME:latest
+    - docker push $REGISTRY/$IMAGE_NAME:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+
+docker-build-test-dev:
+  extends: .build
+  script:
+    - docker build -t $TEST_IMAGE_DEV -f Dockerfile_test .
+    - docker tag $TEST_IMAGE_DEV $REGISTRY/$TEST_IMAGE_DEV:latest
+    - docker push $REGISTRY/$TEST_IMAGE_DEV:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+
+docker-build-test-main:
+  extends: .build
+  script:
+    - docker build -t $TEST_IMAGE_MAIN -f Dockerfile_test .
+    - docker tag $TEST_IMAGE_MAIN $REGISTRY/$TEST_IMAGE_MAIN:latest
+    - docker push $REGISTRY/$TEST_IMAGE_MAIN:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+
+.lint:
+  stage: lint
+  variables:
+    HTTP_PROXY: "http://10.0.20.6:80"
+    HTTPS_PROXY: "http://10.0.20.6:80"
+    http_proxy: "http://10.0.20.6:80"
+    https_proxy: "http://10.0.20.6:80"
+    NO_PROXY: "git.emias.mos.ru,localhost,127.0.0.1"
+    no_proxy: "git.emias.mos.ru,localhost,127.0.0.1"
+  script:
+    - pip install pre-commit
+    - pre-commit run --all-files
+  allow_failure: false
+
+lint-dev:
+  extends: .lint
+  image: $REGISTRY/$TEST_IMAGE_DEV:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+
+lint-main:
+  extends: .lint
+  image: $REGISTRY/$TEST_IMAGE_MAIN:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+
+test-dev:
+  stage: test
+  image: $REGISTRY/$TEST_IMAGE_DEV:latest
+  extends:
+    - .variables_dev
+  services:
+    - name: postgres:17.4-alpine
+      # алиас хоста должен совпадать с хостом в .env
+      # файле, пользователь и пароль - тоже
+      alias: postgresdb
+    - name: docker:dind
+      alias: docker
+      variables:
+        HTTP_PROXY: "http://10.0.20.6:80"
+        HTTPS_PROXY: "http://10.0.20.6:80"
+        http_proxy: "http://10.0.20.6:80"
+        https_proxy: "http://10.0.20.6:80"
+        NO_PROXY: "git.emias.mos.ru,localhost,127.0.0.1"
+        no_proxy: "git.emias.mos.ru,localhost,127.0.0.1"
+        DOCKER_TLS_CERTDIR: ""
+  script:
+    - cp $MY_SECRET_FILE .env
+    - export $(grep -v '^#' .env | xargs)
+    - poetry run pytest tests -n 4
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+  allow_failure: false
+
+test-main:
+  stage: test
+  image: $REGISTRY/$TEST_IMAGE_MAIN:latest
+  extends:
+    - .variables_main
+  services:
+    - name: postgres:17.4-alpine
+      # алиас хоста должен совпадать с хостом в .env
+      # файле, пользователь и пароль - тоже
+      alias: postgresdb
+    - name: docker:dind
+      alias: docker
+      variables:
+        HTTP_PROXY: "http://10.0.20.6:80"
+        HTTPS_PROXY: "http://10.0.20.6:80"
+        http_proxy: "http://10.0.20.6:80"
+        https_proxy: "http://10.0.20.6:80"
+        NO_PROXY: "git.emias.mos.ru,localhost,127.0.0.1"
+        no_proxy: "git.emias.mos.ru,localhost,127.0.0.1"
+        DOCKER_TLS_CERTDIR: ""
+  script:
+    - cp $MY_SECRET_FILE .env
+    - export $(grep -v '^#' .env | xargs)
+    - poetry run pytest tests -n 4
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+  allow_failure: false
+
+.deploy:
+  stage: deploy
+  image: ubuntu
+
+  variables:
+      HTTP_PROXY: "http://10.0.20.6:80"
+      HTTPS_PROXY: "http://10.0.20.6:80"
+      http_proxy: "http://10.0.20.6:80"
+      https_proxy: "http://10.0.20.6:80"
+      NO_PROXY: "git.emias.mos.ru,localhost,127.0.0.1"
+      no_proxy: "git.emias.mos.ru,localhost,127.0.0.1"
+
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan 10.0.16.66 >> ~/.ssh/known_hosts
+    - ssh-keyscan 10.0.16.43 >> ~/.ssh/known_hosts
+    - ssh-keyscan -p 8522 10.0.51.4 >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+
+  allow_failure: false
+
+deploy_dev:
+  extends:
+    - .variables_dev
+    - .deploy
+
+  script:
+    - cp $MY_SECRET_FILE_DEV .env
+    - ssh gitlabuser@10.0.16.66 "docker -v"
+    - ssh gitlabuser@10.0.16.66 '
+      if [ ! -d "/var/www/src/back/glossary" ]; then
+      git clone ssh://git@10.0.51.4:8522/emias.education.development/glossary.git /var/www/src/back/glossary;
+      else
+      cd /var/www/src/back/glossary && git checkout -- . && git pull origin dev;
+      fi
+      '
+    - scp .env gitlabuser@10.0.16.66:/var/www/src/back/glossary
+    - ssh gitlabuser@10.0.16.66 "cd /var/www/src/back/glossary && docker-compose stop && docker-compose up --build -d"
+
+  rules:
+      - if: $CI_COMMIT_BRANCH == "dev"
+
+deploy_main:
+  extends:
+    - .variables_main
+    - .deploy
+
+  script:
+    - cp $MY_SECRET_FILE .env
+    - ssh gitlabuser@10.0.16.43 "docker -v"
+    - ssh gitlabuser@10.0.16.43 '
+      if [ ! -d "/var/www/src/back/glossary" ]; then
+      git clone ssh://git@10.0.51.4:8522/emias.education.development/glossary.git /var/www/src/back/glossary;
+      else
+      cd /var/www/src/back/glossary && git checkout -- . && git pull origin main;
+      fi
+      '
+    - scp .env gitlabuser@10.0.16.43:/var/www/src/back/glossary
+    - ssh gitlabuser@10.0.16.43 "cd /var/www/src/back/glossary && docker-compose stop && docker-compose up --build -d"
+
+  rules:
+      - if: $CI_COMMIT_BRANCH == "main"

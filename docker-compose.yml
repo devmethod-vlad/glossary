@@ -1,0 +1,53 @@
+services:
+  glossary-app:
+    container_name: glossary-app
+    build:
+        context: .
+        dockerfile: Dockerfile_prod
+    env_file:
+      - .env
+    volumes:
+      - ./:/backend
+      - ${GUNICORN_LOGS_HOST_PATH}/:${GUNICORN_LOGS_CONTR_PATH}/
+      - ${APP_LOGS_HOST_PATH}/:${APP_LOGS_CONTR_PATH}/
+    ports:
+      - ${APP_PORT}:${APP_PORT}
+    healthcheck:
+      test: "curl -f ${APP_HOST}:${APP_PORT}/healthcheck"
+    command: >
+      sh -c "
+        python pre_launch.py --logtype app --wait-for-db --migrate --update-glossary silent &&
+        gunicorn app.main:app -b ${APP_HOST}:${APP_PORT} -w ${APP_WORKERS_NUM} -k uvicorn_worker.UvicornWorker --access-logfile ${GUNICORN_LOGS_CONTR_PATH}/access.log --error-logfile ${GUNICORN_LOGS_CONTR_PATH}/error.log
+      "
+
+  glossary-scheduler:
+    container_name: glossary-scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile_prod
+    env_file:
+      - .env
+    volumes:
+      - ./:/backend
+      - ${SCHEDULER_LOGS_HOST_PATH}/:${SCHEDULER_LOGS_CONTR_PATH}/
+    command: >
+      sh -c "
+        python pre_launch.py --logtype scheduler --wait-for-db &&
+        python -m app.infrastructure.background.deffered.scheduler
+      "
+
+  glossary-arq:
+    container_name: glossary-arq
+    build:
+      context: .
+      dockerfile: Dockerfile_prod
+    env_file:
+      - .env
+    volumes:
+      - ./:/backend
+      - ${ARQ_LOGS_HOST_PATH}/:${ARQ_LOGS_CONTR_PATH}/
+    command: >
+      sh -c "
+        python pre_launch.py --logtype arq --wait-for-db &&
+        python -m app.infrastructure.background.instant.worker
+      "

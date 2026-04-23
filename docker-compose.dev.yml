@@ -1,0 +1,78 @@
+services:
+  glossary-app:
+    container_name: glossary-app
+    build:
+      context: .
+      dockerfile: Dockerfile_dev
+    command: >
+      sh -c "
+        python pre_launch.py --logtype app --wait-for-db --migrate --update-glossary silent &&
+        uvicorn app.main:app --host ${APP_HOST} --port ${APP_PORT} --reload
+      "
+    healthcheck:
+      disable: true
+    depends_on:
+      - glossary-db
+      - glossary-redis
+
+  glossary-scheduler:
+    container_name: glossary-scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile_dev
+    depends_on:
+      - glossary-db
+    command: >
+      sh -c "
+        python pre_launch.py --logtype scheduler --wait-for-db
+        python -m app.infrastructure.background.deffered.scheduler
+      "
+  glossary-arq:
+    container_name: glossary-arq
+    build:
+      context: .
+      dockerfile: Dockerfile_dev
+    depends_on:
+      - glossary-db
+    command: >
+      sh -c "
+        python pre_launch.py --logtype arq --wait-for-db &&
+        python -m app.infrastructure.background.instant.worker
+      "
+
+  glossary-pgadmin:
+    container_name: glossary-pgadmin
+    image: dpage/pgadmin4:9.2
+    env_file:
+      - .env
+    ports:
+      - ${PGADMIN_PORT}:80
+
+  glossary-redis:
+    container_name: glossary-redis
+    image: redis:7.4.2
+    env_file:
+      - .env
+    hostname: ${REDIS_HOSTNAME}
+    command: --port ${REDIS_PORT}
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+
+  glossary-redisinsight:
+    container_name: glossary-redisinsight
+    image: redis/redisinsight:latest
+    env_file:
+      - .env
+    ports:
+      - ${REDISINSIGHT_PORT}:5540
+
+  glossary-db:
+    container_name: glossary-db
+    image: postgres:13.4
+    env_file:
+      - .env
+    hostname: ${POSTGRES_HOST}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    ports:
+      - ${POSTGRES_HOST_PORT}:${POSTGRES_PORT}

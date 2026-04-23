@@ -1,0 +1,11 @@
+services:
+  glossary-app:
+    container_name: glossary-app
+    ports:
+      - ${APP_PORT}:${APP_PORT}
+      - ${APP_DEBUG_PORT}:${APP_DEBUG_PORT}
+    command: >
+      sh -c "
+        python pre_launch.py --logtype app --wait-for-db --migrate --update-glossary silent &&
+        poetry run debugpy --listen ${APP_DEBUG_HOST}:${APP_DEBUG_PORT} --wait-for-client -m uvicorn app.main:app --host $APP_HOST --port $APP_PORT --reload
+      "
