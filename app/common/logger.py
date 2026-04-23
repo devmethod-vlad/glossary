@@ -31,9 +31,15 @@ class GlossaryLogger(logging.Logger):
         self.addHandler(console_handler)
 
         # Обработчик для записи в файл
-        file_handler = logging.FileHandler(self._determine_logpath() + "/logs.log", mode="a")
-        file_handler.setFormatter(formatter)
-        self.addHandler(file_handler)
+        try:
+            log_path = self._determine_logpath()
+            os.makedirs(log_path, exist_ok=True)
+            file_handler = logging.FileHandler(f"{log_path}/logs.log", mode="a")
+            file_handler.setFormatter(formatter)
+            self.addHandler(file_handler)
+        except OSError:
+            # Не блокируем приложение, если файловый лог недоступен.
+            pass
 
     def _determine_environment(self) -> str:
         """Определение окружения (docker или host)"""
